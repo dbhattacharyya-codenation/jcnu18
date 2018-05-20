@@ -1,5 +1,3 @@
-.access_token
-
 .idea/
 
 # Compiled class files
@@ -16,8 +14,10 @@ build/
 *.jar
 *.war
 *.ear
-
 !gradle-wrapper.jar
 
 # MySQL database
 database/
+
+README.md
+.gitignore
