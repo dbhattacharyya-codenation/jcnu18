@@ -1,0 +1,21 @@
+.idea/
+
+# Compiled class files
+*.class
+
+# IntelliJ
+out/
+
+# Gradle
+.gradle
+build/
+
+# Jar
+*.jar
+*.war
+*.ear
+
+!gradle-wrapper.jar
+
+# MySQL database
+database/

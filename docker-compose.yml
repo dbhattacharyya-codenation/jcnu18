@@ -1,0 +1,30 @@
+version: '2'
+services:
+    server:
+        container_name: minifix_server
+        build: .
+        ports:
+            - "8080:8080"
+        depends_on:
+            - db
+
+    db:
+        container_name: minifix_db
+        image: mysql:latest
+        volumes:
+            - ./database:/var/lib/mysql
+        env_file:
+            - .env
+        environment:
+            MYSQL_DATABASE: ${DB_NAME}
+            MYSQL_ROOT_PASSWORD: ${DB_PASS}
+    
+    phpmyadmin:
+        container_name: minifix_pma
+        image: phpmyadmin/phpmyadmin
+        env_file:
+            - .env
+        ports:
+            - "8090:80"
+        depends_on:
+            - db
