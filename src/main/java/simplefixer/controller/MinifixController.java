@@ -1,7 +1,6 @@
 package simplefixer.controller;
 
 import com.google.gson.Gson;
-import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
@@ -13,6 +12,7 @@ import simplefixer.model.Minifix;
 import simplefixer.repository.IssueTypeRepository;
 import simplefixer.repository.MinifixRepository;
 import simplefixer.helper.*;
+import simplefixer.constant.Constants;
 
 import java.io.IOException;
 import java.util.*;
@@ -21,18 +21,11 @@ import java.util.*;
 public class MinifixController {
 
     private Driver driver;
-    private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
-    private static final String CODEGEN_POST_URL = "http://codegen-cnu.ey.devfactory.com/api/codegen/";
-    private static final String CODEGEN_GET_URL = "http://codegen-cnu.ey.devfactory.com/api/codegen/status/";
-    private static final String USERNAME = "neo4j";
-    private static final String PASSWORD = "password";
 
     // helper method to create neo4j database driver
     private void createNeo4jDriver(String boltURL) {
-        String username = "neo4j";
-        String password = "password";
         Config noSSL = Config.build().withEncryptionLevel(Config.EncryptionLevel.NONE).toConfig();
-        driver = GraphDatabase.driver(boltURL, AuthTokens.basic(username, password),noSSL);
+        driver = GraphDatabase.driver(boltURL, AuthTokens.basic(Constants.USERNAME, Constants.PASSWORD),noSSL);
     }
 
     // helper method to get neo4j query by issue id
@@ -127,7 +120,7 @@ public class MinifixController {
         OkHttpClient client = new OkHttpClient();
 
         String json = new Gson().toJson(requestObject);
-        okhttp3.RequestBody body = okhttp3.RequestBody.create(JSON, json);
+        okhttp3.RequestBody body = okhttp3.RequestBody.create(Constants.JSON, json);
         Request request = new Request.Builder()
                 .url(url)
                 .post(body)
@@ -202,11 +195,11 @@ public class MinifixController {
 
             // Send request to CodeGen API with fileIds
             String jsonResponse = makeCodeGenPostRequest(
-                    CODEGEN_POST_URL,
+                    Constants.CODEGEN_POST_URL,
                     new CodeGenPostRequest(
                             sandBoxURL,
-                            USERNAME,
-                            PASSWORD,
+                            Constants.USERNAME,
+                            Constants.PASSWORD,
                             fileIds
                     )
             );
@@ -264,7 +257,7 @@ public class MinifixController {
         CodeGenGetResponse response;
         // Hit CodeGen API to get status
         try {
-            String jsonResponse = makeCodeGenGetRequest(CODEGEN_GET_URL + fixId.toString());
+            String jsonResponse = makeCodeGenGetRequest(Constants.CODEGEN_GET_URL + fixId.toString());
             response = new Gson().fromJson(jsonResponse, CodeGenGetResponse.class);
         }
         catch (IOException e) {
