@@ -11,7 +11,14 @@
 ```
 git clone https://github.com/dbhattacharyya-codenation/jcnu18.git
 ```
-
+- `cd` into the directory
+```
+cd jcnu18
+```
+- Switch to `assignment2` branch
+```
+git checkout assignment2
+```
 - Run docker-compose up
 ```
 docker-compose up
