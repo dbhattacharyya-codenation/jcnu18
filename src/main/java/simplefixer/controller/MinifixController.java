@@ -64,7 +64,7 @@ public class MinifixController {
                 updatedModifiers = updatedModifiers + modifier + ", ";
             }
         }
-        
+
         if (updatedModifiers.length() > 2) {
             updatedModifiers = updatedModifiers.substring(0, updatedModifiers.length() - 2);
         }
@@ -215,7 +215,7 @@ public class MinifixController {
         // Check for valid fixId
         if (minifixes.isEmpty()) {
             return gson.toJson(
-                    new GetResponse(400, "FixId not found")
+                    new GetResponse(404, "FixId not found")
             );
         }
 
