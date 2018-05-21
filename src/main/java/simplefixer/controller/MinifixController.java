@@ -29,7 +29,7 @@ public class MinifixController {
     }
 
     // helper method to get neo4j query by issue id
-    private String getQueryString(Integer issueId) {
+    private String getQueryString(Integer issueId) throws InvalidIssueIdException {
         switch(issueId) {
             case 1: return "MATCH (file:File)-[:DEFINE]->(:TypeDeclaration {entity_type:\"class\"})-[:member]-> (m:MethodDeclaration) " +
                     "WHERE NOT m.modifiers =~ \"\\\\[(public|private|protected)?(, )?(abstract)?(, )?(static)?(, )?(final)?(, )?(transient)?(, )?(volatile)?(, )?(synchronized)?(, )?(native)?(, )?(strictfp)?\\\\]\" " +
@@ -47,7 +47,7 @@ public class MinifixController {
                     "MATCH (file:File)-[:DEFINE]->(class) " +
                     "RETURN id(method) AS methodId, method.modifiers AS modifiers, method.file AS file, method.line AS line, method.col AS col, id(file) AS fileId";
         }
-        return null;
+        throw new InvalidIssueIdException();
     }
 
     // helper method to return query string for modifier order check
@@ -121,10 +121,11 @@ public class MinifixController {
         try
         {
             Session session = driver.session();
-            String queryString = getQueryString(issueId);
-
-            // Check for valid issueId
-            if (queryString == null) {
+            String queryString;
+            try {
+                queryString = getQueryString(issueId);
+            }
+            catch (InvalidIssueIdException e) {
                 return gson.toJson(
                         new PostResponse(400, "Invalid IssueId")
                 );
