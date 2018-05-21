@@ -303,6 +303,22 @@ public class MinifixController {
             for (Record record : result) {
                 // Store distinct fileIds in a Set
                 fileIds.add(record.get("fileId").asInt());
+
+                // Update Codegraph to fix issue
+                if (issueId == 1) {
+                    String fixModifierQuery = getModifierFixQuery(
+                            record.get("methodId").asInt(),
+                            getUpdatedModifierOrder(record.get("modifiers").asString())
+                    );
+                    session.run(fixModifierQuery);
+                }
+                else if (issueId == 3) {
+                    String addSynchronizedToModifierQuery = getModifierFixQuery(
+                            record.get("methodId").asInt(),
+                            addSynchronizedToModifiers(record.get("modifiers").asString())
+                    );
+                    session.run(addSynchronizedToModifierQuery);
+                }
             }
 
             // Send request to CodeGen API with fileIds
@@ -329,26 +345,8 @@ public class MinifixController {
                         .setFileName(record.get("file").asString())
                         .setLineNumber(record.get("line").asInt())
                         .setColumnNumber(record.get("col").asInt())
-                        .setFixId(fixId);
-
-                // Update Codegraph to fix issue
-                if (issueId == 1) {
-                    String fixModifierQuery = getModifierFixQuery(
-                            record.get("methodId").asInt(),
-                            getUpdatedModifierOrder(record.get("modifiers").asString())
-                    );
-                    session.run(fixModifierQuery);
-                }
-                else if (issueId == 3) {
-                    String addSynchronizedToModifierQuery = getModifierFixQuery(
-                            record.get("methodId").asInt(),
-                            addSynchronizedToModifiers(record.get("modifiers").asString())
-                    );
-                    session.run(addSynchronizedToModifierQuery);
-                }
-
-                // Set isFixed
-                minifix = minifix.setIsFixed();
+                        .setFixId(fixId)
+                        .setIsFixed();
 
                 // Add record to SQL database
                 minifixRepository.save(minifix);
