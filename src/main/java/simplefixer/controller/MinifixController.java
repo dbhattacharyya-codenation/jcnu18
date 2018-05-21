@@ -6,6 +6,7 @@ import okhttp3.Request;
 import okhttp3.Response;
 import org.neo4j.driver.v1.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import simplefixer.model.IssueType;
 import simplefixer.model.Minifix;
@@ -40,11 +41,6 @@ public class MinifixController {
         throw new InvalidIssueIdException();
     }
 
-    // helper method to return query string for modifier order check
-    private String getModifierFixQuery(Integer methodId, String updatedModifier) {
-        return String.format("MATCH (m:MethodDeclaration) WHERE id(m) = %d SET m.modifiers = \"%s\"", methodId, updatedModifier);
-    }
-
     // helper method to fix modifier order for method declaration
     private String getUpdatedModifierOrder(String currentModifiers) {
         String updatedModifiers = "";
@@ -55,12 +51,11 @@ public class MinifixController {
             }
         }
 
-        if (updatedModifiers.length() > 2) {
+        if (!StringUtils.isEmpty(updatedModifiers)) {
             updatedModifiers = updatedModifiers.substring(0, updatedModifiers.length() - 2);
         }
 
-        updatedModifiers = "[" + updatedModifiers + "]";
-        return updatedModifiers;
+        return "[" + updatedModifiers + "]";
     }
 
     // helper method to add synchronized to modifiers for lazy initialization of static fields
@@ -134,14 +129,14 @@ public class MinifixController {
 
                 // Update Codegraph to fix issue
                 if (issueId == 1) {
-                    String fixModifierQuery = getModifierFixQuery(
+                    String fixModifierQuery = CypherQuery.GET_MODIFIER_FIX_QUERY(
                             record.get("methodId").asInt(),
                             getUpdatedModifierOrder(record.get("modifiers").asString())
                     );
                     session.run(fixModifierQuery);
                 }
                 else if (issueId == 3) {
-                    String addSynchronizedToModifierQuery = getModifierFixQuery(
+                    String addSynchronizedToModifierQuery = CypherQuery.GET_MODIFIER_FIX_QUERY(
                             record.get("methodId").asInt(),
                             addSynchronizedToModifiers(record.get("modifiers").asString())
                     );
@@ -175,6 +170,7 @@ public class MinifixController {
                         .setColumnNumber(record.get("col").asInt())
                         .setFixId(fixId)
                         .setIsFixed();
+
 
                 // Add record to SQL database
                 minifixRepository.save(minifix);

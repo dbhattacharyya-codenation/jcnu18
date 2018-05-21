@@ -15,4 +15,7 @@ public class CypherQuery {
             "MATCH (file:File)-[:DEFINE]->(class) " +
             "RETURN id(method) AS methodId, method.modifiers AS modifiers, method.file AS file, method.line AS line, method.col AS col, id(file) AS fileId";
 
+    public static final String GET_MODIFIER_FIX_QUERY(Integer methodId, String updatedModifier) {
+        return String.format("MATCH (m:MethodDeclaration) WHERE id(m) = %d SET m.modifiers = \"%s\"", methodId, updatedModifier);
+    }
 }

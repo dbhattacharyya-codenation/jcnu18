@@ -13,10 +13,6 @@ public class IssueType {
 
     public IssueType() {}
 
-    public IssueType(String issueDescription) {
-        this.issueDescription = issueDescription;
-    }
-
     public Integer getId() {
         return id;
     }
@@ -24,7 +20,6 @@ public class IssueType {
     public String getIssueDescription() {
         return issueDescription;
     }
-
 
     @Override
     public String toString() {
