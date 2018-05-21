@@ -160,12 +160,20 @@ public class MinifixController {
     private String getQueryString(Integer issueId) {
         switch(issueId) {
             case 1: return "MATCH (file:File)-[:DEFINE]->(:TypeDeclaration {entity_type:\"class\"})-[:member]-> (m:MethodDeclaration) " +
-                    "WHERE NOT m.modifiers =~ \"\\\\[(public|private|protected)?(, )?(abstract)?(, )?(static)?(, )?(final)?(, )?(synchronized)?\\\\]\" " +
+                    "WHERE NOT m.modifiers =~ \"\\\\[(public|private|protected)?(, )?(abstract)?(, )?(static)?(, )?(final)?(, )?(transient)?(, )?(volatile)?(, )?(synchronized)?(, )?(native)?(, )?(strictfp)?\\\\]\" " +
                     "return id(m) AS methodId ,m.modifiers AS modifiers, m.file AS file, m.line AS line, m.col AS col, id(file) AS fileId";
 
             case 2: return "MATCH (n) RETURN n LIMIT 5";
 
-            case 3: return "MATCH (n) RETURN n LIMIT 5";
+            case 3: return "MATCH (instance:SimpleName)<-[:SETS]-(method:MethodDeclaration)<-[:member]-" +
+                    "(class:TypeDeclaration {entity_type:\"class\"})-[:member]->(field:FieldDeclaration)-[:fragment]->" +
+                    "(:VariableDeclarationFragment)-[:SET_BY]->(instance:SimpleName) " +
+                    "WHERE field.modifiers CONTAINS \"static\" AND " +
+                    "NOT field.modifiers CONTAINS \"final\" AND " +
+                    "NOT method.modifiers CONTAINS \"synchronized\" " +
+                    "WITH method,class " +
+                    "MATCH (file:File)-[:DEFINE]->(class) " +
+                    "RETURN id(method) AS methodId, method.modifiers AS modifiers, method.file AS file, method.line AS line, method.col AS col, id(file) AS fileId";
         }
         return null;
     }
@@ -200,8 +208,24 @@ public class MinifixController {
             updatedModifiers += "final, ";
         }
 
+        if (currentModifiers.contains("transient")) {
+            updatedModifiers += "transient, ";
+        }
+
+        if (currentModifiers.contains("volatile")) {
+            updatedModifiers += "volatile, ";
+        }
+
         if (currentModifiers.contains("synchronized")) {
             updatedModifiers += "synchronized, ";
+        }
+
+        if (currentModifiers.contains("native")) {
+            updatedModifiers += "native, ";
+        }
+
+        if (currentModifiers.contains("strictfp")) {
+            updatedModifiers += "strictfp, ";
         }
 
         if (updatedModifiers.length() > 2) {
@@ -210,6 +234,13 @@ public class MinifixController {
 
         updatedModifiers = "[" + updatedModifiers + "]";
         return updatedModifiers;
+    }
+
+    // helper method to add synchronized to modifiers for lazy initialization of static fields
+    private String addSynchronizedToModifiers(String currentModifiers) {
+        String updatedModifiers = currentModifiers.substring(0,currentModifiers.length() - 1) +
+                ", synchronized]";
+        return getUpdatedModifierOrder(updatedModifiers);
     }
 
     // helper method to send HTTP Post request to CodeGen API on updated Codegraph
@@ -307,6 +338,13 @@ public class MinifixController {
                             getUpdatedModifierOrder(record.get("modifiers").asString())
                     );
                     session.run(fixModifierQuery);
+                }
+                else if (issueId == 3) {
+                    String addSynchronizedToModifierQuery = getModifierFixQuery(
+                            record.get("methodId").asInt(),
+                            addSynchronizedToModifiers(record.get("modifiers").asString())
+                    );
+                    session.run(addSynchronizedToModifierQuery);
                 }
 
                 // Set isFixed
