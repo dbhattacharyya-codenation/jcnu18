@@ -58,48 +58,13 @@ public class MinifixController {
     // helper method to fix modifier order for method declaration
     private String getUpdatedModifierOrder(String currentModifiers) {
         String updatedModifiers = "";
-        if (currentModifiers.contains("public")) {
-            updatedModifiers += "public, ";
-        }
-        else if (currentModifiers.contains("private")) {
-            updatedModifiers += "private, ";
-        }
-        else if (currentModifiers.contains("protected")) {
-            updatedModifiers += "protected, ";
-        }
 
-        if (currentModifiers.contains("abstract")) {
-            updatedModifiers += "abstract, ";
+        for (String modifier : Constants.MODIFIERS_LIST) {
+            if (currentModifiers.contains(modifier)) {
+                updatedModifiers = updatedModifiers + modifier + ", ";
+            }
         }
-
-        if (currentModifiers.contains("static")) {
-            updatedModifiers += "static, ";
-        }
-
-        if (currentModifiers.contains("final")) {
-            updatedModifiers += "final, ";
-        }
-
-        if (currentModifiers.contains("transient")) {
-            updatedModifiers += "transient, ";
-        }
-
-        if (currentModifiers.contains("volatile")) {
-            updatedModifiers += "volatile, ";
-        }
-
-        if (currentModifiers.contains("synchronized")) {
-            updatedModifiers += "synchronized, ";
-        }
-
-        if (currentModifiers.contains("native")) {
-            updatedModifiers += "native, ";
-        }
-
-        if (currentModifiers.contains("strictfp")) {
-            updatedModifiers += "strictfp, ";
-        }
-
+        
         if (updatedModifiers.length() > 2) {
             updatedModifiers = updatedModifiers.substring(0, updatedModifiers.length() - 2);
         }
