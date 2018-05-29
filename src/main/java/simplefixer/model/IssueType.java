@@ -1,9 +1,12 @@
 package simplefixer.model;
 
+import lombok.Getter;
+
 import javax.persistence.*;
 
 @Entity
 @Table(name = "issue_types")
+@Getter
 public class IssueType {
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
@@ -12,14 +15,6 @@ public class IssueType {
     private String issueDescription;
 
     public IssueType() {}
-
-    public Integer getId() {
-        return id;
-    }
-
-    public String getIssueDescription() {
-        return issueDescription;
-    }
 
     @Override
     public String toString() {

@@ -1,5 +1,10 @@
 package simplefixer.helper;
 
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.NoArgsConstructor;
+
+@Builder @NoArgsConstructor @AllArgsConstructor
 public class IssueResponse {
     private Integer id;
     private Integer issueTypeId;
@@ -8,14 +13,4 @@ public class IssueResponse {
     private Integer lineNumber;
     private Integer columnNumber;
     private Boolean isFixed;
-
-    public IssueResponse(Integer id, Integer issueTypeId, String issueTypeDesc,String fileName, Integer lineNumber,Integer columnNumber, Boolean isFixed) {
-        this.id = id;
-        this.issueTypeId = issueTypeId;
-        this.issueTypeDesc = issueTypeDesc;
-        this.fileName = fileName;
-        this.lineNumber = lineNumber;
-        this.columnNumber = columnNumber;
-        this.isFixed = isFixed;
-    }
 }

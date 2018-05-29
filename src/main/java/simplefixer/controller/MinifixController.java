@@ -162,15 +162,15 @@ public class MinifixController {
             for (Record record : result) {
                 // System.out.println(record.get("modifiers").asString());
 
-                Minifix minifix = new Minifix()
-                        .setIssueType(issueType)
-                        .setSandBoxURL(sandBoxURL)
-                        .setFileName(record.get("file").asString())
-                        .setLineNumber(record.get("line").asInt())
-                        .setColumnNumber(record.get("col").asInt())
-                        .setFixId(fixId)
-                        .setIsFixed();
-
+                Minifix minifix = Minifix.builder()
+                        .issueType(issueType)
+                        .sandBoxURL(sandBoxURL)
+                        .fileName(record.get("file").asString())
+                        .lineNumber(record.get("line").asInt())
+                        .columnNumber(record.get("col").asInt())
+                        .fixId(fixId)
+                        .isFixed(true)
+                        .build();
 
                 // Add record to SQL database
                 minifixRepository.save(minifix);

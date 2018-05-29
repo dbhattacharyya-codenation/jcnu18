@@ -16,14 +16,15 @@ public class GetResponse {
     private List<IssueResponse> buildIssueResponses(List<Minifix> minifixes) {
         List<IssueResponse> issueResponses = new ArrayList<>();
         for (Minifix minifix : minifixes) {
-            issueResponses.add(new IssueResponse(
-                    minifix.getId(),
-                    minifix.getIssueType().getId(),
-                    minifix.getIssueType().getIssueDescription(),
-                    minifix.getFileName(),
-                    minifix.getLineNumber(),
-                    minifix.getColumnNumber(),
-                    minifix.getIsFixed())
+            issueResponses.add(IssueResponse.builder()
+                    .id(minifix.getId())
+                    .issueTypeId(minifix.getIssueType().getId())
+                    .issueTypeDesc(minifix.getIssueType().getIssueDescription())
+                    .fileName(minifix.getFileName())
+                    .lineNumber(minifix.getLineNumber())
+                    .columnNumber(minifix.getColumnNumber())
+                    .isFixed(minifix.getIsFixed())
+                    .build()
             );
         }
         return issueResponses;
