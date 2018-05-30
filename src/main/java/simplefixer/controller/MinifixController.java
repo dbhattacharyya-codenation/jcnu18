@@ -1,5 +1,6 @@
 package simplefixer.controller;
 
+import categorizer.Categorizer;
 import com.google.gson.Gson;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -15,20 +16,13 @@ import simplefixer.repository.MinifixRepository;
 import simplefixer.helper.*;
 import simplefixer.constant.Constants;
 import simplefixer.constant.CypherQuery;
+import simplefixer.utils.DbConnection;
 
 import java.io.IOException;
 import java.util.*;
 
 @RestController
 public class MinifixController {
-
-    private Driver driver;
-
-    // helper method to create neo4j database driver
-    private void createNeo4jDriver(String boltURL) {
-        Config noSSL = Config.build().withEncryptionLevel(Config.EncryptionLevel.NONE).toConfig();
-        driver = GraphDatabase.driver(boltURL, AuthTokens.basic(Constants.USERNAME, Constants.PASSWORD),noSSL);
-    }
 
     // helper method to get neo4j query by issue id
     private String getQueryString(Integer issueId) throws InvalidIssueIdException {
@@ -100,92 +94,87 @@ public class MinifixController {
     @PostMapping(value = "/fix", produces = "application/json")
     public @ResponseBody String handleIssues(@RequestParam Integer issueId, @RequestParam String sandBoxURL) {
         Gson gson = new Gson();
-        createNeo4jDriver(sandBoxURL);
-        Integer fixId;
+        Integer fixId = -1;
+        try (DbConnection conn = new DbConnection(sandBoxURL)) {
 
-        try
-        {
-            Session session = driver.session();
-            String queryString;
-            try {
-                queryString = getQueryString(issueId);
-            }
-            catch (InvalidIssueIdException e) {
+            try (Session session = conn.getDriver().session()) {
+
+                String queryString;
+                try {
+                    queryString = getQueryString(issueId);
+                } catch (InvalidIssueIdException e) {
+                    return gson.toJson(
+                            new PostResponse(400, "Invalid IssueId")
+                    );
+                }
+
+                // Run query on Codegraph
+                List<Record> result = session.run(queryString).list();
+
+                IssueType issueType = issueTypeRepository.findById(issueId).get();
+                Set<Integer> fileIds = new HashSet<>();
+
+                // Iterate over retrieved nodes to get fileIds for CodeGen
+                for (Record record : result) {
+                    // Store distinct fileIds in a Set
+                    fileIds.add(record.get("fileId").asInt());
+
+                    // Update Codegraph to fix issue
+                    if (issueId == 1) {
+                        String fixModifierQuery = CypherQuery.GET_MODIFIER_FIX_QUERY(
+                                record.get("methodId").asInt(),
+                                getUpdatedModifierOrder(record.get("modifiers").asString())
+                        );
+                        session.run(fixModifierQuery);
+                    } else if (issueId == 3) {
+                        String addSynchronizedToModifierQuery = CypherQuery.GET_MODIFIER_FIX_QUERY(
+                                record.get("methodId").asInt(),
+                                addSynchronizedToModifiers(record.get("modifiers").asString())
+                        );
+                        session.run(addSynchronizedToModifierQuery);
+                    }
+                }
+
+                // Send request to CodeGen API with fileIds
+                String jsonResponse = makeCodeGenPostRequest(
+                        Constants.CODEGEN_POST_URL,
+                        new CodeGenPostRequest(
+                                sandBoxURL,
+                                Constants.USERNAME,
+                                Constants.PASSWORD,
+                                fileIds
+                        )
+                );
+
+                // Deserialize JSON response
+                fixId = new Gson().fromJson(jsonResponse, CodeGenPostResponse.class).getId();
+
+                // Iterate over retrieved nodes
+                for (Record record : result) {
+                    // System.out.println(record.get("modifiers").asString());
+
+                    Minifix minifix = Minifix.builder()
+                            .issueType(issueType)
+                            .sandBoxURL(sandBoxURL)
+                            .fileName(record.get("file").asString())
+                            .lineNumber(record.get("line").asInt())
+                            .columnNumber(record.get("col").asInt())
+                            .fixId(fixId)
+                            .isFixed(true)
+                            .build();
+
+                    // Add record to SQL database
+                    minifixRepository.save(minifix);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
                 return gson.toJson(
-                        new PostResponse(400, "Invalid IssueId")
+                        new PostResponse(500, e.toString())
                 );
             }
-
-            // Run query on Codegraph
-            List<Record> result = session.run(queryString).list();
-
-            IssueType issueType = issueTypeRepository.findById(issueId).get();
-            Set<Integer> fileIds = new HashSet<>();
-
-            // Iterate over retrieved nodes to get fileIds for CodeGen
-            for (Record record : result) {
-                // Store distinct fileIds in a Set
-                fileIds.add(record.get("fileId").asInt());
-
-                // Update Codegraph to fix issue
-                if (issueId == 1) {
-                    String fixModifierQuery = CypherQuery.GET_MODIFIER_FIX_QUERY(
-                            record.get("methodId").asInt(),
-                            getUpdatedModifierOrder(record.get("modifiers").asString())
-                    );
-                    session.run(fixModifierQuery);
-                }
-                else if (issueId == 3) {
-                    String addSynchronizedToModifierQuery = CypherQuery.GET_MODIFIER_FIX_QUERY(
-                            record.get("methodId").asInt(),
-                            addSynchronizedToModifiers(record.get("modifiers").asString())
-                    );
-                    session.run(addSynchronizedToModifierQuery);
-                }
-            }
-
-            // Send request to CodeGen API with fileIds
-            String jsonResponse = makeCodeGenPostRequest(
-                    Constants.CODEGEN_POST_URL,
-                    new CodeGenPostRequest(
-                            sandBoxURL,
-                            Constants.USERNAME,
-                            Constants.PASSWORD,
-                            fileIds
-                    )
-            );
-
-            // Deserialize JSON response
-            fixId = new Gson().fromJson(jsonResponse, CodeGenPostResponse.class).getId();
-
-            // Iterate over retrieved nodes
-            for (Record record : result) {
-                // System.out.println(record.get("modifiers").asString());
-
-                Minifix minifix = Minifix.builder()
-                        .issueType(issueType)
-                        .sandBoxURL(sandBoxURL)
-                        .fileName(record.get("file").asString())
-                        .lineNumber(record.get("line").asInt())
-                        .columnNumber(record.get("col").asInt())
-                        .fixId(fixId)
-                        .isFixed(true)
-                        .build();
-
-                // Add record to SQL database
-                minifixRepository.save(minifix);
-            }
-
-            // Close driver and session
-            session.close();
-            driver.close();
         }
         catch (Exception e) {
-            driver.close();
-            e.printStackTrace();
-            return gson.toJson(
-                    new PostResponse(500, e.toString())
-            );
+            System.out.println(e.toString());
         }
 
         return gson.toJson(
@@ -223,5 +212,23 @@ public class MinifixController {
         return gson.toJson(
                 new GetResponse(200, response.getStatus(), fixId, response.getUrl(), minifixes)
         );
+    }
+
+    @PostMapping(value = "/testdup", produces = "application/json")
+    public String testDuplicate(
+            @RequestParam String boltURL,
+            @RequestParam String file1, @RequestParam Integer startLine1, @RequestParam Integer endLine1,
+            @RequestParam String file2, @RequestParam Integer startLine2, @RequestParam Integer endLine2
+    ) {
+        return Categorizer.builder()
+                .boltURL(boltURL)
+                .file1(file1)
+                .startLine1(startLine1)
+                .endLine1(endLine1)
+                .file2(file2)
+                .startLine2(startLine2)
+                .endLine2(endLine2)
+                .build()
+                .testMethod();
     }
 }
