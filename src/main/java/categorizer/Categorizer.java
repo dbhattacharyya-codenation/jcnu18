@@ -5,7 +5,6 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import org.neo4j.driver.v1.*;
 import org.neo4j.driver.v1.types.Node;
-import simplefixer.constant.Constants;
 import simplefixer.utils.DbConnection;
 
 import java.security.MessageDigest;
@@ -129,10 +128,19 @@ public class Categorizer {
         excludedProperties.add("id");
         excludedProperties.add("line");
         excludedProperties.add("endLine");
+        excludedProperties.add("col");
+        excludedProperties.add("longname");
         excludedProperties.add("file");
 
-        if (node.hasLabel("VariableDeclarationFragment") || node.hasLabel("SimpleName")) {
-            excludedProperties.add(node.get("name").asString());
+        if (node.hasLabel("SimpleName")) {
+            excludedProperties.add("name");
+        }
+        if (node.hasLabel("VariableDeclarationFragment")) {
+            excludedProperties.add("simplename");
+        }
+        if (node.hasLabel("SingleVariableDeclaration")) {
+            excludedProperties.add("name");
+            excludedProperties.add("simplename");
         }
 
         Iterator<String> iter = node.keys().iterator();
@@ -217,6 +225,7 @@ public class Categorizer {
                 if (subgraph1.hasNext() || subgraph2.hasNext()) {
                     isCategory1 = false;
                 }
+
             } catch (Exception e) {
                 e.printStackTrace();
                 return gson.toJson(new Response(500, e.toString(), null));
@@ -225,6 +234,7 @@ public class Categorizer {
         catch (Exception e) {
             System.out.println(e.toString());
         }
+
         if (!isCategory1) {
             return gson.toJson(new Response(200, "Not category1", null));
         }
