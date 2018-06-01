@@ -14,6 +14,11 @@ public class DbConnection implements AutoCloseable {
         driver = GraphDatabase.driver(uri, AuthTokens.basic(Constants.USERNAME, Constants.PASSWORD), noSSL);
     }
 
+    public DbConnection(String uri, String username, String password) {
+        Config noSSL = Config.build().withEncryptionLevel(Config.EncryptionLevel.NONE).toConfig();
+        driver = GraphDatabase.driver(uri, AuthTokens.basic(username, password), noSSL);
+    }
+
     public Driver getDriver() {
         return driver;
     }

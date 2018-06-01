@@ -1,6 +1,8 @@
 package simplefixer.controller;
 
 import categorizer.Categorizer;
+import categorizer.constant.Category;
+import categorizer.helper.*;
 import com.google.gson.Gson;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -230,5 +232,25 @@ public class MinifixController {
                 .endLine2(endLine2)
                 .build()
                 .testMethod();
+    }
+
+    @PostMapping(value = "/categorize")
+    @ResponseBody
+    public CategorizerResponse testRoute(@RequestBody FinderRequest finderRequest) {
+        Sandbox sandbox = finderRequest.getSandbox();
+        List<IssueData> issueDataList = finderRequest.getIssuesData();
+        List<IssueCategory> issueCategories = new ArrayList<>();
+
+        try (DbConnection conn = new DbConnection(sandbox.getBoltUrl(), sandbox.getUsername(), sandbox.getPassword())) {
+            for (IssueData issueData : issueDataList) {
+                Category category  = new Categorizer().getCategory(conn.getDriver(), issueData);
+                issueCategories.add(new IssueCategory(issueData.getId(), category));
+            }
+        }
+        catch (Exception e) {
+            System.err.println(e.toString());
+            return new CategorizerResponse(500, e.toString(), null);
+        }
+        return new CategorizerResponse(200, "Success", issueCategories);
     }
 }

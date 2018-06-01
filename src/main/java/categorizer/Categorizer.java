@@ -1,8 +1,12 @@
 package categorizer;
 
+import categorizer.constant.Category;
+import categorizer.helper.IssueData;
+import categorizer.helper.IssueLocation;
 import com.google.gson.Gson;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
+import lombok.NoArgsConstructor;
 import org.neo4j.driver.v1.*;
 import org.neo4j.driver.v1.types.Node;
 import simplefixer.utils.DbConnection;
@@ -37,7 +41,8 @@ class Response {
     }
 }
 
-@AllArgsConstructor @Builder
+@AllArgsConstructor @NoArgsConstructor
+@Builder
 public class Categorizer {
     private String boltURL;
     private String file1;
@@ -47,6 +52,8 @@ public class Categorizer {
     private String file2;
     private Integer startLine2;
     private Integer endLine2;
+
+    private Session session;
 
     private static String sha1(String input) throws NoSuchAlgorithmException {
         MessageDigest mDigest = MessageDigest.getInstance("SHA1");
@@ -175,6 +182,60 @@ public class Categorizer {
         return hash;
     }
 
+    private String getAllEdgehash(Node n, Node m) {
+        String query = String.format("MATCH (n)-[rel]->(m) WHERE id(n)=%s AND id(m)=%s RETURN type(rel) as rel", n.id(), m.id());
+        String hash = "";
+        StatementResult result = session.run(query);
+        List<String> edgeList = new ArrayList<>();
+
+        while (result.hasNext()) {
+            String edgeName = result.next().get("rel").asString();
+            if (isAstEdge(edgeName)) {
+                edgeList.add(edgeName);
+            }
+        }
+
+        Collections.sort(edgeList);
+
+        for (String edgeName : edgeList) {
+            try {
+                hash = hash + sha1(edgeName);
+                hash = sha1(hash);
+            }
+            catch (NoSuchAlgorithmException e) {
+                System.err.println("Error calculating SHA1");
+            }
+        }
+
+        return hash;
+    }
+
+    private String getSubtreeHash(Node node) {
+        String hash = getNodeHash(node);
+        try {
+            String query = String.format("MATCH (n)-[:tree_edge]->(m) WHERE id(n) = %d RETURN m", node.id());
+            StatementResult result = session.run(query);
+            while (result.hasNext()) {
+                Node v = result.next().get("m").asNode();
+                String childHash = getSubtreeHash(v);
+                childHash = childHash + getAllEdgehash(node, v);
+
+                try {
+                    childHash = sha1(childHash);
+                    hash = hash + childHash;
+                    hash = sha1(hash);
+                }
+                catch (NoSuchAlgorithmException e) {
+                    System.err.println(e.toString());
+                }
+            }
+        }
+        catch (Exception e) {
+            System.err.println(e.toString());
+        }
+        return hash;
+    }
+
     public String testMethod() {
         boolean isCategory1 = true;
 
@@ -240,5 +301,86 @@ public class Categorizer {
         }
 
         return gson.toJson(new Response(200, "Success", variables));
+    }
+
+    private <T> List<List<T>> transpose(List<List<T>> table) {
+        List<List<T>> ret = new ArrayList<List<T>>();
+        final int N = table.get(0).size();
+        for (int i = 0; i < N; i++) {
+            List<T> col = new ArrayList<T>();
+            for (List<T> row : table) {
+                col.add(row.get(i));
+            }
+            ret.add(col);
+        }
+        return ret;
+    }
+
+    private boolean isContiguousCodeSegment(IssueData issueData) {
+        List<List<Long>> transposeMappings = transpose(issueData.getNodeIdMappings());
+        Integer fileNumber = 0;
+
+        for (IssueLocation issueLocation : issueData.getIssueLocations()) {
+            String query = String.format("MATCH (n {file:\"%s\"}) WHERE n.line >= %d AND n.endLine <= %d AND ANY(label IN labels(n) WHERE label =~ \".*Statement\") RETURN id(n) AS id ORDER BY n.line", issueLocation.getFileName(), issueLocation.getStartLine(),issueLocation.getEndLine());
+            List<Long> orderedIDs = session.run(query).list(record -> record.get("id").asLong());
+            if(!orderedIDs.equals(transposeMappings.get(fileNumber))) {
+                return false;
+            }
+            fileNumber++;
+        }
+        return true;
+    }
+
+    private boolean isDiffVariableNamesCategory(Driver driver, IssueData issueData) {
+        try (Session session = driver.session()) {
+            this.session = session;
+
+            if (!isContiguousCodeSegment(issueData)) {
+                return false;
+            }
+
+            for (List<Long> nodeIdMapping : issueData.getNodeIdMappings()) {
+                Set<String> subtreeHashes = new HashSet<>();
+                for(Long nodeId : nodeIdMapping) {
+                    StatementResult result = session.run(String.format("MATCH (n) WHERE id(n) = %d RETURN n", nodeId));
+                    if (result.hasNext()) {
+                        subtreeHashes.add(getSubtreeHash(result.next().get("n").asNode()));
+                    }
+                }
+                if (subtreeHashes.size() > 1) {
+                    return false;
+                }
+            }
+        }
+        catch (Exception e) {
+            System.err.println(e.toString());
+            throw e;
+        }
+        return true;
+    }
+
+    private boolean isDiffConstantsCategory(Driver driver, IssueData issueData) {
+
+        return false;
+    }
+
+    public Category getCategory(Driver driver, IssueData issueData) {
+
+        for (Category category : Category.values()) {
+            switch (category) {
+                case DIFF_VARIABLE_NAMES:
+                    if (isDiffVariableNamesCategory(driver, issueData)) {
+                        return Category.DIFF_VARIABLE_NAMES;
+                    }
+                    break;
+                case DIFF_LITERALS_AND_CONSTANTS:
+                    if (isDiffConstantsCategory(driver, issueData)) {
+                        return Category.DIFF_LITERALS_AND_CONSTANTS;
+                    }
+                    break;
+            }
+        }
+
+        return Category.NOT_RESOLVABLE;
     }
 }
