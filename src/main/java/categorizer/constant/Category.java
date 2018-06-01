@@ -1,8 +1,7 @@
 package categorizer.constant;
 
 public enum Category {
-    DIFF_VARIABLE_NAMES("Exact match except variable names"),
-    DIFF_LITERALS_AND_CONSTANTS("Exact match except constants and literals"),
+    DIFF_VARNAMES_AND_LITERALS("Exact match except variable names, constants and literals"),
     NOT_RESOLVABLE("Unresolvable category");
 
     private String description;

@@ -139,7 +139,7 @@ public class Categorizer {
         excludedProperties.add("longname");
         excludedProperties.add("file");
 
-        if (node.hasLabel("SimpleName")) {
+        if (node.hasLabel("SimpleName") || node.hasLabel("StringLiteral") || node.hasLabel("NumberLiteral") || node.hasLabel("BooleanLiteral")) {
             excludedProperties.add("name");
         }
         if (node.hasLabel("VariableDeclarationFragment")) {
@@ -346,9 +346,9 @@ public class Categorizer {
                     if (result.hasNext()) {
                         subtreeHashes.add(getSubtreeHash(result.next().get("n").asNode()));
                     }
-                }
-                if (subtreeHashes.size() > 1) {
-                    return false;
+                    if (subtreeHashes.size() > 1) {
+                        return false;
+                    }
                 }
             }
         }
@@ -359,28 +359,16 @@ public class Categorizer {
         return true;
     }
 
-    private boolean isDiffConstantsCategory(Driver driver, IssueData issueData) {
-
-        return false;
-    }
-
     public Category getCategory(Driver driver, IssueData issueData) {
-
         for (Category category : Category.values()) {
             switch (category) {
-                case DIFF_VARIABLE_NAMES:
+                case DIFF_VARNAMES_AND_LITERALS:
                     if (isDiffVariableNamesCategory(driver, issueData)) {
-                        return Category.DIFF_VARIABLE_NAMES;
-                    }
-                    break;
-                case DIFF_LITERALS_AND_CONSTANTS:
-                    if (isDiffConstantsCategory(driver, issueData)) {
-                        return Category.DIFF_LITERALS_AND_CONSTANTS;
+                        return Category.DIFF_VARNAMES_AND_LITERALS;
                     }
                     break;
             }
         }
-
         return Category.NOT_RESOLVABLE;
     }
 }
