@@ -244,7 +244,7 @@ public class MinifixController {
         try (DbConnection conn = new DbConnection(sandbox.getBoltUrl(), sandbox.getUsername(), sandbox.getPassword())) {
             for (IssueData issueData : issueDataList) {
                 Category category  = new Categorizer().getCategory(conn.getDriver(), issueData);
-                issueCategories.add(new IssueCategory(issueData.getId(), category));
+                issueCategories.add(new IssueCategory(issueData.getId(), category, issueData.getIssueLocations()));
             }
         }
         catch (Exception e) {

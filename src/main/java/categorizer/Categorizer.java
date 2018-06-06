@@ -1,8 +1,10 @@
 package categorizer;
 
 import categorizer.constant.Category;
+import categorizer.constant.CypherQuery;
 import categorizer.helper.IssueData;
 import categorizer.helper.IssueLocation;
+import categorizer.matcher.Matcher;
 import com.google.gson.Gson;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -54,6 +56,7 @@ public class Categorizer {
     private Integer endLine2;
 
     private Session session;
+    private List<List<Long>> orderedIDs;
 
     private static String sha1(String input) throws NoSuchAlgorithmException {
         MessageDigest mDigest = MessageDigest.getInstance("SHA1");
@@ -131,13 +134,8 @@ public class Categorizer {
             }
         }
 
-        List<String> excludedProperties = new ArrayList<>();
-        excludedProperties.add("id");
-        excludedProperties.add("line");
-        excludedProperties.add("endLine");
-        excludedProperties.add("col");
-        excludedProperties.add("longname");
-        excludedProperties.add("file");
+        String[] props = {"id", "line", "endLine", "col", "longname", "file"};
+        List<String> excludedProperties = new ArrayList<>(Arrays.asList(props));
 
         if (node.hasLabel("SimpleName") || node.hasLabel("StringLiteral") || node.hasLabel("NumberLiteral") || node.hasLabel("BooleanLiteral")) {
             excludedProperties.add("name");
@@ -153,18 +151,12 @@ public class Categorizer {
         Iterator<String> iter = node.keys().iterator();
         List<String> propertyList = new ArrayList<>();
 
-        whileLabel:
         while (iter.hasNext()) {
             String key = iter.next();
-
-            for(String excludedProperty : excludedProperties) {
-                if (key.equals(excludedProperty)) {
-                    break whileLabel;
-                }
+            if (!excludedProperties.contains(key)) {
+                String value = node.get(key).toString();
+                propertyList.add(key + value);
             }
-
-            String value = node.get(key).toString();
-            propertyList.add(key + value);
         }
 
         Collections.sort(propertyList);
@@ -303,6 +295,17 @@ public class Categorizer {
         return gson.toJson(new Response(200, "Success", variables));
     }
 
+    private boolean isSubsequence(List<Long> list, List<Long> subList) {
+        int listIndex = 0, subListIndex = 0;
+        while (listIndex < list.size() && subListIndex < subList.size()) {
+            if (subList.get(subListIndex) == list.get(listIndex)) {
+                subListIndex++;
+            }
+            listIndex++;
+        }
+        return subListIndex >= subList.size();
+    }
+
     private <T> List<List<T>> transpose(List<List<T>> table) {
         List<List<T>> ret = new ArrayList<List<T>>();
         final int N = table.get(0).size();
@@ -331,6 +334,33 @@ public class Categorizer {
         return true;
     }
 
+    private boolean isOrderedCodeSegment(IssueData issueData) {
+        List<List<Long>> nodeIdMappings = transpose(issueData.getNodeIdMappings());
+        List<List<Long>> orderedIDs = new ArrayList<List<Long>>();
+        Integer fileNumber = 0;
+
+        for (IssueLocation issueLocation : issueData.getIssueLocations()) {
+            String query = String.format("MATCH (n {file:\"%s\"}) WHERE n.line >= %d AND n.endLine <= %d AND ANY(label IN labels(n) WHERE label =~ \".*Statement\") RETURN id(n) AS id ORDER BY n.line", issueLocation.getFileName(), issueLocation.getStartLine(),issueLocation.getEndLine());
+            List<Long> orderedIDsForCurrentFile = session.run(query).list(record -> record.get("id").asLong());
+            if(!isSubsequence(orderedIDsForCurrentFile,nodeIdMappings.get(fileNumber))) {
+                return false;
+            }
+            orderedIDs.add(orderedIDsForCurrentFile);
+            fileNumber++;
+        }
+        this.orderedIDs = orderedIDs;
+        return true;
+    }
+
+    private Map<Long, Node> getNodeHashMap(List<List<Long>> nodeIdMappings) {
+        Map<Long, Node> nodeMap = new HashMap<>();
+        List<Record> results = session.run(CypherQuery.GET_NODES_FROM_NODE_ID_MAPPINGS_QUERY(nodeIdMappings)).list();
+        for (Record result : results) {
+            nodeMap.put(result.get("id").asLong(), result.get("n").asNode());
+        }
+        return nodeMap;
+    }
+
     private boolean isDiffVariableNamesCategory(Driver driver, IssueData issueData) {
         try (Session session = driver.session()) {
             this.session = session;
@@ -339,13 +369,12 @@ public class Categorizer {
                 return false;
             }
 
+            Map<Long, Node> nodeMap = getNodeHashMap(issueData.getNodeIdMappings());
+
             for (List<Long> nodeIdMapping : issueData.getNodeIdMappings()) {
                 Set<String> subtreeHashes = new HashSet<>();
                 for(Long nodeId : nodeIdMapping) {
-                    StatementResult result = session.run(String.format("MATCH (n) WHERE id(n) = %d RETURN n", nodeId));
-                    if (result.hasNext()) {
-                        subtreeHashes.add(getSubtreeHash(result.next().get("n").asNode()));
-                    }
+                    subtreeHashes.add(getSubtreeHash(nodeMap.get(nodeId)));
                     if (subtreeHashes.size() > 1) {
                         return false;
                     }
@@ -356,6 +385,7 @@ public class Categorizer {
             System.err.println(e.toString());
             throw e;
         }
+
         return true;
     }
 
